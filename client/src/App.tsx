@@ -471,7 +471,7 @@ export default function App() {
                       <div>
                         <strong>{new Date(t.date).toLocaleDateString()}</strong>
                         <span style={{ marginLeft: 8, opacity: 0.8 }}>({BUCKET_LABEL[t.bucket]})</span>
-                        <div style={{ opacity: 0.9 }}>{t.note}</div>
+                        <div style={{ opacity: 0.9, color: '#f50000ff', }}>{t.note}</div>
                       </div>
                       <div className="row" style={{ alignItems: "center" }}>
                         <span>{t.amount.toLocaleString()}</span>
