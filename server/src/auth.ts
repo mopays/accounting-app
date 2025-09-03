@@ -3,19 +3,10 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const COOKIE_NAME = "sid";
-
-/** ตอนนี้ใช้ same-origin (ผ่าน Vercel proxy) ได้แล้ว
- *  ใช้ sameSite:lax จะเสถียรกว่า และไม่ต้องกำหนด domain
+/** Login แบบไม่ใช้คุกกี้:
+ *  รับ { username } → ถ้าไม่มีใน DB จะสร้างใหม่ แล้วคืนข้อมูล user กลับ
+ *  ไม่ตั้ง cookie ใดๆ
  */
-const cookieOpts = {
-  httpOnly: true,
-  secure: true as const,    // Render เป็น HTTPS
-  sameSite: "lax" as const, // ✅ first-party cookie
-  path: "/",
-  maxAge: 1000 * 60 * 60 * 24 * 30, // 30 วัน
-};
-
 export async function login(req: Request, res: Response) {
   const { username } = (req.body ?? {}) as { username?: string };
   if (!username || typeof username !== "string") {
@@ -28,30 +19,30 @@ export async function login(req: Request, res: Response) {
   let user = await prisma.user.findUnique({ where: { username } });
   if (!user) user = await prisma.user.create({ data: { username } });
 
-  res.cookie(COOKIE_NAME, String(user.id), cookieOpts);
+  // ไม่ตั้ง cookie — ให้ client เก็บ username เอง แล้วแนบมากับทุก request
   return res.json({ ok: true, user: { id: user.id, username: user.username } });
 }
 
+/** Logout แบบไม่ใช้คุกกี้: แค่ตอบ ok */
 export async function logout(_req: Request, res: Response) {
-  res.clearCookie(COOKIE_NAME, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-  });
   return res.json({ ok: true });
 }
 
+/** withUser: อ่าน username จาก header x-username หรือ query ?username=... */
 export async function withUser(req: Request, res: Response, next: NextFunction) {
-  const sid = req.cookies?.[COOKIE_NAME];
-  if (!sid) return res.status(401).json({ error: "unauthorized" });
+  let username = (req.headers["x-username"] as string | undefined)?.trim();
+  if (!username) {
+    const q = req.query.username;
+    if (typeof q === "string") username = q.trim();
+  }
+  if (!username) return res.status(401).json({ error: "username missing" });
+  if (!/^[\w.\-]{1,64}$/.test(username)) {
+    return res.status(400).json({ error: "invalid username" });
+  }
 
-  const id = Number(sid);
-  if (!Number.isFinite(id)) return res.status(401).json({ error: "invalid sid" });
-
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) return res.status(401).json({ error: "user not found" });
+  const user = await prisma.user.findUnique({ where: { username } });
+  if (!user) return res.status(404).json({ error: "user not found" });
 
   (req as any).user = { id: user.id, username: user.username };
-  return next();
+  next();
 }
