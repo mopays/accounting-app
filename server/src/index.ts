@@ -1,18 +1,25 @@
+import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
 
-import { login, logout, withUser } from "./auth";
-import usersRouter from "./users.routes";
-import cyclesRouter from "./cycles.routes";
-import txnsRouter from "./txns.routes";
-import exportRouter from "./export.routes";
+import { login, logout, withUser } from "./auth.js";
+import cyclesRouter from "./cycles.routes.js";
+import exportRouter from "./export.routes.js";
+import txnsRouter from "./txns.routes.js";
+import usersRouter from "./users.routes.js";
 
 const app = express();
 app.set("trust proxy", 1);
 
-// proxy แล้ว origin จะเป็นโดเมน vercel ⇒ เปิดหลวม ๆ ไว้ก็ไม่เป็นไร
-app.use(cors({ origin: true, credentials: false }));
+// ไม่ใช้คุกกี้ → credentials:false พอ
+app.use(
+  cors({
+    origin: true,
+    credentials: false,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-username"],
+  })
+);
 
 app.use(express.json());
 
@@ -22,10 +29,8 @@ app.post("/auth/login", login);
 app.post("/auth/logout", logout);
 
 app.use("/users", usersRouter);
-
 app.use("/cycles", withUser, cyclesRouter);
 app.use("/txns", withUser, txnsRouter);
 app.use("/reports", withUser, exportRouter);
 
-const PORT = Number(process.env.PORT) || 4000;
-app.listen(PORT, () => console.log(`API running on http://0.0.0.0:${PORT}`));
+export default app;
