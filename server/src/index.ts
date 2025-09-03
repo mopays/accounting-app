@@ -4,11 +4,11 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 // ถ้าใช้ Prisma: import { PrismaClient } from "@prisma/client";  // ต้องมี prisma generate ก่อน build
-import { login, logout, withUser } from "./auth";
-import usersRouter from "./users.routes";
-import cyclesRouter from "./cycles.routes";
-import txnsRouter from "./txns.routes";
-import exportRouter from "./export.routes";
+import { login, logout, withUser } from "./auth.js";
+import usersRouter from "./users.routes.js";
+import cyclesRouter from "./cycles.routes.js";
+import txnsRouter from "./txns.routes.js";
+import exportRouter from "./export.routes.js";
 
 const app = express();
 
