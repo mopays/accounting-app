@@ -14,7 +14,7 @@ const app = express();
 
 // อนุญาต origin ของ frontend บน Vercel ทั้งโปรดักชัน+พรีวิว
 const allowedOrigins = [
-  "https://accounting-app-inky.vercel.app",
+  "https://accounting-app-khxi.onrender.com",
   /\.vercel\.com$/ // อนุญาตโดเมน preview ของตัวเอง
 ];
 
