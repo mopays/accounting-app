@@ -1,9 +1,5 @@
 {
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://accounting-app-khxi.onrender.com/:path*"
-    }
+    { "source": "/api/:path*", "destination": "https://accounting-app-khxi.onrender.com/:path*" }
   ]
 }
-
