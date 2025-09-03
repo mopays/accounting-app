@@ -1,4 +1,6 @@
+// const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
 const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
+
 
 const USERNAME_KEY = "app_username";
 export const setUsername = (u: string) => localStorage.setItem(USERNAME_KEY, u);

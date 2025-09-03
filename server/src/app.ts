@@ -14,8 +14,8 @@ const app = express();
 
 // อนุญาต origin ของ frontend บน Vercel ทั้งโปรดักชัน+พรีวิว
 const allowedOrigins = [
-  "https://accounting-app-khxi.onrender.com", // client production
-  /\.onrender\.com$/, // allow preview domains ของ Vercel
+  "https://accounting-app-inky.vercel.app", // client production
+  /\.vercel\.app$/, // allow preview domains ของ Vercel
 ];
 
 app.use(
@@ -33,6 +33,15 @@ app.use(
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "x-username"],
     credentials: false, // ❗ no-cookie mode
+  })
+);
+
+app.use(
+  cors({
+    origin: true,
+    credentials: false,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-username"],
   })
 );
 
