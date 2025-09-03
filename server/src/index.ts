@@ -11,22 +11,18 @@ import exportRouter from "./export.routes";
 const app = express();
 app.set("trust proxy", 1);
 
-// ✅ อนุญาตทุก origin (เพราะจะถูก proxy จาก Vercel อยู่แล้ว)
-// ไม่ใช้คุกกี้ → ไม่ต้อง credentials
+// proxy แล้ว origin จะเป็นโดเมน vercel ⇒ เปิดหลวม ๆ ไว้ก็ไม่เป็นไร
 app.use(cors({ origin: true, credentials: false }));
 
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// Auth (stateless, no cookie)
 app.post("/auth/login", login);
 app.post("/auth/logout", logout);
 
-// Users
 app.use("/users", usersRouter);
 
-// Protected
 app.use("/cycles", withUser, cyclesRouter);
 app.use("/txns", withUser, txnsRouter);
 app.use("/reports", withUser, exportRouter);

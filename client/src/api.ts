@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
 
 const USERNAME_KEY = "app_username";
 export const setUsername = (u: string) => localStorage.setItem(USERNAME_KEY, u);
@@ -30,7 +30,7 @@ export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
 export type Txn = { id: number; date: string; note: string; amount: number; bucket: Bucket };
 
 export const api = {
-  // auth
+  // auth (stateless)
   login: async (username: string) => {
     const r = await request("/auth/login", { method: "POST", body: JSON.stringify({ username }) });
     setUsername(username);
