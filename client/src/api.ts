@@ -10,7 +10,7 @@ async function request(path: string, options: RequestInit = {}) {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
-  if (username) headers["x-username"] = username; // ✅ แนบ username ทุกครั้ง
+  if (username) headers["x-username"] = username;
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
@@ -30,7 +30,7 @@ export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
 export type Txn = { id: number; date: string; note: string; amount: number; bucket: Bucket };
 
 export const api = {
-  // auth (stateless)
+  // auth
   login: async (username: string) => {
     const r = await request("/auth/login", { method: "POST", body: JSON.stringify({ username }) });
     setUsername(username);
@@ -61,17 +61,16 @@ export const api = {
     const url = new URL(`${API_URL}/txns`);
     url.searchParams.set("cycleId", String(cycleId));
     if (bucket) url.searchParams.set("bucket", bucket);
-    if (username) url.searchParams.set("username", username); // เผื่อ edge cache
-    return fetch(url.toString(), {
-      headers: username ? { "x-username": username } : {},
-    }).then(async (r) => {
-      if (!r.ok) {
-        let msg = `${r.status} ${r.statusText}`;
-        try { const j = await r.json(); if (j?.error) msg = j.error; } catch {}
-        throw new Error(msg);
-      }
-      return r.json();
-    });
+    if (username) url.searchParams.set("username", username);
+    return fetch(url.toString(), { headers: username ? { "x-username": username } : {} })
+      .then(async (r) => {
+        if (!r.ok) {
+          let msg = `${r.status} ${r.statusText}`;
+          try { const j = await r.json(); if (j?.error) msg = j.error; } catch {}
+          throw new Error(msg);
+        }
+        return r.json();
+      });
   },
 
   createTxn: (body: { cycleId: number; bucket: Bucket; date: string; note: string; amount: number; }) =>
@@ -85,15 +84,14 @@ export const api = {
     const url = new URL(`${API_URL}/txns/summary`);
     url.searchParams.set("cycleId", String(cycleId));
     if (username) url.searchParams.set("username", username);
-    return fetch(url.toString(), {
-      headers: username ? { "x-username": username } : {},
-    }).then(async (r) => {
-      if (!r.ok) {
-        let msg = `${r.status} ${r.statusText}`;
-        try { const j = await r.json(); if (j?.error) msg = j.error; } catch {}
-        throw new Error(msg);
-      }
-      return r.json();
-    });
+    return fetch(url.toString(), { headers: username ? { "x-username": username } : {} })
+      .then(async (r) => {
+        if (!r.ok) {
+          let msg = `${r.status} ${r.statusText}`;
+          try { const j = await r.json(); if (j?.error) msg = j.error; } catch {}
+          throw new Error(msg);
+        }
+        return r.json();
+      });
   },
 };
