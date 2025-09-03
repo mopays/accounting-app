@@ -10,7 +10,10 @@ import txnsRouter from "./txns.routes";
 import exportRouter from "./export.routes";
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: ["https://accounting-app-inky.vercel.app"], // domain ของ frontend
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
 
