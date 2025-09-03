@@ -2,12 +2,13 @@
   "name": "server",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "prebuild": "prisma generate",
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "migrate:deploy": "prisma migrate deploy"
   },
   "keywords": [],
   "author": "",
@@ -31,5 +32,8 @@
     "prisma": "^6.15.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
   }
 }
