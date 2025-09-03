@@ -14,22 +14,25 @@ const app = express();
 
 // อนุญาต origin ของ frontend บน Vercel ทั้งโปรดักชัน+พรีวิว
 const allowedOrigins = [
-  "https://accounting-app-inky.vercel.app",
-  /\.vercel\.app$/ // อนุญาตโดเมน preview ของตัวเอง
+  "https://accounting-app-inky.vercel.app", // client production
+  /\.vercel\.app$/ // allow preview domains ของ Vercel
 ];
 
-app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true); // curl / health
-      if (allowedOrigins.some(o => (o instanceof RegExp ? o.test(origin) : o === origin))) {
-        return cb(null, true);
-      }
-      cb(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser
+    if (
+      allowedOrigins.includes(origin) ||
+      allowedOrigins.some((o) => o instanceof RegExp && o.test(origin))
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-username"],
+  credentials: false // ❗ no-cookie mode
+}));
 
 app.use(express.json());
 app.use(cookieParser());
