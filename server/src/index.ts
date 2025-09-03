@@ -11,26 +11,18 @@ import exportRouter from "./export.routes";
 
 const app = express();
 
-/** สำคัญ: อยู่หลัง reverse proxy (Render/Heroku/…)
- *  เพื่อให้ cookie ที่ตั้งเป็น { secure: true } ทำงานถูกต้อง
- */
+/** อยู่หลัง reverse proxy (Render) เพื่อให้ secure cookies ทำงานถูกต้อง */
 app.set("trust proxy", 1);
 
-/** อนุญาตโดเมนหน้าเว็บ (Vercel) ส่งคุกกี้ข้ามโดเมน */
-const ALLOWED_ORIGINS = [
-  "https://accounting-app-inky.vercel.app", // Frontend ของคุณบน Vercel
-];
-app.use(
-  cors({
-    origin(origin, cb) {
-      // อนุญาตเครื่องมือ dev ที่ไม่มี origin (เช่น curl / health)
-      if (!origin) return cb(null, true);
-      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      return cb(new Error(`Not allowed by CORS: ${origin}`));
-    },
-    credentials: true,
-  })
-);
+/**
+ * เมื่อ client เรียกผ่าน Vercel rewrite เป็นเสมือน same-origin แล้ว
+ * จริง ๆ ไม่จำเป็นต้อง CORS แต่คงไว้แบบ permissive ก็ไม่เป็นไร
+ * (จะถูกเรียกจาก Vercel proxy เป็นหลัก)
+ */
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 
 app.use(express.json());
 app.use(cookieParser());

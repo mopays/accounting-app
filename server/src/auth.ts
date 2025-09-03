@@ -3,14 +3,15 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// ชื่อคุกกี้
 const COOKIE_NAME = "sid";
 
-// ตัวเลือกคุกกี้ที่ให้ข้ามโดเมนได้ (Vercel <-> Render)
+/** ตอนนี้ใช้ same-origin (ผ่าน Vercel proxy) ได้แล้ว
+ *  ใช้ sameSite:lax จะเสถียรกว่า และไม่ต้องกำหนด domain
+ */
 const cookieOpts = {
   httpOnly: true,
-  secure: true as const,     // ต้อง https เท่านั้น
-  sameSite: "none" as const, // ข้ามไซต์ได้
+  secure: true as const,    // Render เป็น HTTPS
+  sameSite: "lax" as const, // ✅ first-party cookie
   path: "/",
   maxAge: 1000 * 60 * 60 * 24 * 30, // 30 วัน
 };
@@ -20,29 +21,22 @@ export async function login(req: Request, res: Response) {
   if (!username || typeof username !== "string") {
     return res.status(400).json({ error: "username required" });
   }
-
-  // อนุญาตแค่ a-zA-Z0-9 . _ -
   if (!/^[\w.\-]{1,64}$/.test(username)) {
     return res.status(400).json({ error: "invalid username" });
   }
 
-  // หา/สร้างผู้ใช้
   let user = await prisma.user.findUnique({ where: { username } });
-  if (!user) {
-    user = await prisma.user.create({ data: { username } });
-  }
+  if (!user) user = await prisma.user.create({ data: { username } });
 
-  // เก็บ userId ลงคุกกี้ (ไม่ต้องมี session table ก็ได้)
   res.cookie(COOKIE_NAME, String(user.id), cookieOpts);
   return res.json({ ok: true, user: { id: user.id, username: user.username } });
 }
 
 export async function logout(_req: Request, res: Response) {
-  // เคลียร์คุกกี้: ต้องระบุ options ให้ตรงกับตอนตั้ง
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     secure: true,
-    sameSite: "none",
+    sameSite: "lax",
     path: "/",
   });
   return res.json({ ok: true });

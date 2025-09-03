@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+
 export type Cycle = {
   id: number; monthKey: string; salary: number;
   pctSavings: number; pctMonthly: number; pctWants: number;
@@ -10,20 +11,15 @@ export type Txn = { id: number; date: string; note: string; amount: number; buck
 
 async function request(path: string, options: RequestInit = {}) {
   const res = await fetch(`${API_URL}${path}`, {
-    credentials: "include", // ✅ ส่งคุกกี้ทุกครั้ง
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    credentials: "include",                   // ✅ ให้ส่งคุกกี้เสมอ
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
   if (!res.ok) {
-    // ลองอ่านข้อความ error จาก backend
     let msg = `${res.status} ${res.statusText}`;
     try { const j = await res.json(); if (j?.error) msg = j.error; } catch {}
     throw new Error(msg);
   }
-  // มีบาง endpoint (export) อาจเป็นไฟล์ ไม่ใช่ JSON — ตัวนี้ใช้กับ JSON เท่านั้น
   return res.json();
 }
 
