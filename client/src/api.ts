@@ -1,53 +1,153 @@
-const API_URL = import.meta.env.VITE_API_URL as string;
+// frontend/src/api.ts
 
-export type Cycle = {
-  id: number; monthKey: string; salary: number;
-  pctSavings: number; pctMonthly: number; pctWants: number;
-  allocSavings: number; allocMonthly: number; allocWants: number;
-};
-export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
-export type Txn = { id: number; date: string; note: string; amount: number; bucket: Bucket };
+// const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
+const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
+
+const USERNAME_KEY = "app_username";
+export const setUsername = (u: string) => localStorage.setItem(USERNAME_KEY, u);
+export const getUsername = () => localStorage.getItem(USERNAME_KEY);
 
 async function request(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${API_URL}${path}`, { credentials: "include", ...options });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  const username = getUsername();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (username) headers["x-username"] = username;
+
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    // ✅ ย้ำชัดว่าเราเป็น no-cookie
+    credentials: "omit",
+  });
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 
-export const api = {
-  // auth
-  login: (username: string) =>
-    request("/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) }),
-  logout: () => request("/auth/logout", { method: "POST" }),
+export type Cycle = {
+  id: number;
+  monthKey: string;
+  salary: number;
+  pctSavings: number;
+  pctMonthly: number;
+  pctWants: number;
+  allocSavings: number;
+  allocMonthly: number;
+  allocWants: number;
+};
+export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
+export type Txn = {
+  id: number;
+  date: string;
+  note: string;
+  amount: number;
+  bucket: Bucket;
+};
 
-  // users
+export const api = {
+  login: async (username: string) => {
+    const r = await request("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username }),
+    });
+    setUsername(username);
+    return r;
+  },
+  logout: async () => {
+    await request("/auth/logout", { method: "POST" });
+    setUsername("");
+  },
+
   registerUser: (username: string) =>
-    request("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) }),
+    request("/users", { method: "POST", body: JSON.stringify({ username }) }),
   listUsers: () => request("/users"),
   deleteUser: (id: number) => request(`/users/${id}`, { method: "DELETE" }),
 
-  // cycles
   listCycles: (): Promise<Cycle[]> => request("/cycles"),
-  upsertCycle: (body: { monthKey: string; salary: number; pctSavings: number; pctMonthly: number; pctWants: number; }) =>
-    request("/cycles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-  updateCycle: (id: number, body: Partial<{ salary: number; pctSavings: number; pctMonthly: number; pctWants: number; }>) =>
-    request(`/cycles/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  upsertCycle: (body: {
+    monthKey: string;
+    salary: number;
+    pctSavings: number;
+    pctMonthly: number;
+    pctWants: number;
+  }) => request("/cycles", { method: "POST", body: JSON.stringify(body) }),
+  updateCycle: (
+    id: number,
+    body: Partial<{
+      salary: number;
+      pctSavings: number;
+      pctMonthly: number;
+      pctWants: number;
+    }>
+  ) => request(`/cycles/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteCycle: (id: number) => request(`/cycles/${id}`, { method: "DELETE" }),
 
-  // txns
   listTxns: (cycleId: number, bucket?: string): Promise<Txn[]> => {
-    const url = new URL(`${API_URL}/txns`); url.searchParams.set("cycleId", String(cycleId));
+    const username = getUsername();
+    const url = new URL(`${API_URL}/txns`);
+    url.searchParams.set("cycleId", String(cycleId));
     if (bucket) url.searchParams.set("bucket", bucket);
-    return fetch(url.toString(), { credentials: "include" }).then(r => r.json());
+    if (username) url.searchParams.set("username", username);
+    return fetch(url.toString(), {
+      headers: username ? { "x-username": username } : {},
+      credentials: "omit", // ✅ สำคัญ
+    }).then(async (r) => {
+      if (!r.ok) {
+        let msg = `${r.status} ${r.statusText}`;
+        try {
+          const j = await r.json();
+          if (j?.error) msg = j.error;
+        } catch {}
+        throw new Error(msg);
+      }
+      return r.json();
+    });
   },
-  createTxn: (body: { cycleId: number; bucket: Bucket; date: string; note: string; amount: number; }) =>
-    request("/txns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-  updateTxn: (id: number, body: Partial<{ bucket: Bucket; date: string; note: string; amount: number; }>) =>
-    request(`/txns/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+
+  createTxn: (body: {
+    cycleId: number;
+    bucket: Bucket;
+    date: string;
+    note: string;
+    amount: number;
+  }) => request("/txns", { method: "POST", body: JSON.stringify(body) }),
+  updateTxn: (
+    id: number,
+    body: Partial<{
+      bucket: Bucket;
+      date: string;
+      note: string;
+      amount: number;
+    }>
+  ) => request(`/txns/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteTxn: (id: number) => request(`/txns/${id}`, { method: "DELETE" }),
 
   getSummary: (cycleId: number) => {
-    const url = new URL(`${API_URL}/txns/summary`); url.searchParams.set("cycleId", String(cycleId));
-    return fetch(url.toString(), { credentials: "include" }).then(r => r.json());
+    const username = getUsername();
+    const url = new URL(`${API_URL}/txns/summary`);
+    url.searchParams.set("cycleId", String(cycleId));
+    if (username) url.searchParams.set("username", username);
+    return fetch(url.toString(), {
+      headers: username ? { "x-username": username } : {},
+      credentials: "omit", // ✅ สำคัญ
+    }).then(async (r) => {
+      if (!r.ok) {
+        let msg = `${r.status} ${r.statusText}`;
+        try {
+          const j = await r.json();
+          if (j?.error) msg = j.error;
+        } catch {}
+        throw new Error(msg);
+      }
+      return r.json();
+    });
   },
 };
