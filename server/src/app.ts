@@ -13,42 +13,45 @@ import usersRouter from "./users.routes.js";
 const app = express();
 app.set("trust proxy", 1);
 
-// ✅ อนุญาต origin ของ frontend (อย่าใส่ / ท้ายโดเมน)
+// ✅ อนุญาต origin ของ frontend (ห้ามมี / ท้ายโดเมน)
 const allowedOrigins = [
-  "https://accounting-app-inky.vercel.app", // production
-  /\.vercel\.app$/,                          // preview domains
+  "https://accounting-app-inky.vercel.app", // production on Vercel
+  /\.vercel\.app$/,                         // preview domains
 ];
 
-// ✅ ใช้ cors() แค่ครั้งเดียว และทำงานแบบ no-cookie
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // non-browser or same-origin
-      if (
-        allowedOrigins.includes(origin) ||
-        allowedOrigins.some((o) => o instanceof RegExp && o.test(origin))
-      ) {
-        return callback(null, true);
-      }
-      return callback(new Error(`Not allowed by CORS: ${origin}`));
-    },
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-username"],
-    credentials: false, // ✅ no-cookie mode ให้สอดคล้องกับ frontend
-  })
-);
+// ✅ ตัวเลือก CORS — อนุญาต credentials และรองรับ preflight แน่นอน
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true); // non-browser / same-origin
+    const ok = allowedOrigins.some((o) =>
+      o instanceof RegExp ? o.test(origin) : o === origin
+    );
+    return ok ? callback(null, true) : callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  credentials: true, // ✅ เผื่อ frontend ส่ง include มาก็ผ่าน
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-username"],
+};
+
+// ✅ จัดการ preflight ทุกเส้นทางก่อน
+app.options("*", cors(corsOptions));
+
+// ✅ ใช้ CORS เพียงครั้งเดียว
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(cookieParser());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// Auth (no-cookie)
+// Auth
 app.post("/auth/login", login);
 app.post("/auth/logout", logout);
 
-// Routes
+// Users
 app.use("/users", usersRouter);
+
+// Protected
 app.use("/cycles", withUser, cyclesRouter);
 app.use("/txns", withUser, txnsRouter);
 app.use("/reports", withUser, exportRouter);

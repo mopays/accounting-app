@@ -15,10 +15,10 @@ async function request(path: string, options: RequestInit = {}) {
   };
   if (username) headers["x-username"] = username;
 
-  // ✅ ย้ำว่า no-cookie: ไม่ใช้ credentials ระหว่าง CORS
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    // ✅ ย้ำชัดว่าเราเป็น no-cookie
     credentials: "omit",
   });
   if (!res.ok) {
@@ -43,9 +43,7 @@ export type Cycle = {
   allocMonthly: number;
   allocWants: number;
 };
-
 export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
-
 export type Txn = {
   id: number;
   date: string;
@@ -89,8 +87,7 @@ export const api = {
       pctMonthly: number;
       pctWants: number;
     }>
-  ) =>
-    request(`/cycles/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  ) => request(`/cycles/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteCycle: (id: number) => request(`/cycles/${id}`, { method: "DELETE" }),
 
   listTxns: (cycleId: number, bucket?: string): Promise<Txn[]> => {
