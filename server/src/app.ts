@@ -1,9 +1,9 @@
+// backend/src/app.ts
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
 
-// ถ้าใช้ Prisma: import { PrismaClient } from "@prisma/client";  // ต้องมี prisma generate ก่อน build
 import { login, logout, withUser } from "./auth.js";
 import cyclesRouter from "./cycles.routes.js";
 import exportRouter from "./export.routes.js";
@@ -11,17 +11,19 @@ import txnsRouter from "./txns.routes.js";
 import usersRouter from "./users.routes.js";
 
 const app = express();
+app.set("trust proxy", 1);
 
-// อนุญาต origin ของ frontend บน Vercel ทั้งโปรดักชัน+พรีวิว
+// ✅ อนุญาต origin ของ frontend (อย่าใส่ / ท้ายโดเมน)
 const allowedOrigins = [
-  "https://accounting-app-inky.vercel.app", // client production
-  /\.vercel\.app$/, // allow preview domains ของ Vercel
+  "https://accounting-app-inky.vercel.app", // production
+  /\.vercel\.app$/,                          // preview domains
 ];
 
+// ✅ ใช้ cors() แค่ครั้งเดียว และทำงานแบบ no-cookie
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // allow non-browser
+      if (!origin) return callback(null, true); // non-browser or same-origin
       if (
         allowedOrigins.includes(origin) ||
         allowedOrigins.some((o) => o instanceof RegExp && o.test(origin))
@@ -32,16 +34,7 @@ app.use(
     },
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "x-username"],
-    credentials: false, // ❗ no-cookie mode
-  })
-);
-
-app.use(
-  cors({
-    origin: true,
-    credentials: false,
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-username"],
+    credentials: false, // ✅ no-cookie mode ให้สอดคล้องกับ frontend
   })
 );
 
@@ -50,16 +43,21 @@ app.use(cookieParser());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// Auth
+// Auth (no-cookie)
 app.post("/auth/login", login);
 app.post("/auth/logout", logout);
 
-// Users
+// Routes
 app.use("/users", usersRouter);
-
-// Protected
 app.use("/cycles", withUser, cyclesRouter);
 app.use("/txns", withUser, txnsRouter);
 app.use("/reports", withUser, exportRouter);
 
-export default app; // <<< สำคัญมาก
+export default app;
+
+if (process.env.NODE_ENV !== "test") {
+  const PORT = Number(process.env.PORT) || 4000;
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`API running on http://0.0.0.0:${PORT}`);
+  });
+}

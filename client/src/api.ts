@@ -1,6 +1,7 @@
+// frontend/src/api.ts
+
 // const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
 const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
-
 
 const USERNAME_KEY = "app_username";
 export const setUsername = (u: string) => localStorage.setItem(USERNAME_KEY, u);
@@ -14,8 +15,12 @@ async function request(path: string, options: RequestInit = {}) {
   };
   if (username) headers["x-username"] = username;
 
-  // ❗ ไม่มี credentials แล้ว (เรา no-cookie)
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  // ✅ ย้ำว่า no-cookie: ไม่ใช้ credentials ระหว่าง CORS
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "omit",
+  });
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try {
@@ -38,7 +43,9 @@ export type Cycle = {
   allocMonthly: number;
   allocWants: number;
 };
+
 export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
+
 export type Txn = {
   id: number;
   date: string;
@@ -94,6 +101,7 @@ export const api = {
     if (username) url.searchParams.set("username", username);
     return fetch(url.toString(), {
       headers: username ? { "x-username": username } : {},
+      credentials: "omit", // ✅ สำคัญ
     }).then(async (r) => {
       if (!r.ok) {
         let msg = `${r.status} ${r.statusText}`;
@@ -132,6 +140,7 @@ export const api = {
     if (username) url.searchParams.set("username", username);
     return fetch(url.toString(), {
       headers: username ? { "x-username": username } : {},
+      credentials: "omit", // ✅ สำคัญ
     }).then(async (r) => {
       if (!r.ok) {
         let msg = `${r.status} ${r.statusText}`;
