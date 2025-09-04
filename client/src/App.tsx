@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type Txn, type Bucket, type Cycle, API_URL } from "./api";
+import { api, type Txn, type Bucket, type Cycle } from "./api";
 import "./index.css";
 
 const BUCKET_LABEL: Record<Bucket, string> = {
@@ -11,7 +11,7 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 function ymNow() {
   const d = new Date();
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const m = String(d.getMonth() + 1).padStart(2, "0"); // เดือนเริ่มที่ 0 → +1 แล้ว pad
   return `${y}-${m}`;
 }
 
@@ -21,9 +21,9 @@ export default function App() {
   const [registerName, setRegisterName] = useState("");
   const [logged, setLogged] = useState(false);
 
-  // cycle form
+  // cycle form (เก็บเป็น string เพื่อให้ว่างได้)
   const [monthKey, setMonthKey] = useState(ymNow());
-  const [salary, setSalary] = useState<string>("");
+  const [salary, setSalary] = useState<string>(""); // เดิมเป็น 0 → ""
   const [pct, setPct] = useState<{ SAVINGS: string; MONTHLY: string; WANTS: string }>({
     SAVINGS: "",
     MONTHLY: "",
@@ -38,21 +38,31 @@ export default function App() {
 
   // txns
   const [txns, setTxns] = useState<Txn[]>([]);
-  const [newTxn, setNewTxn] = useState<{ date: string; note: string; amount: string }>({
+  const [newTxn, setNewTxn] = useState<{
+    date: string;
+    note: string;
+    amount: string; // เดิม number → string
+  }>({
     date: new Date().toISOString().slice(0, 10),
     note: "",
-    amount: "",
+    amount: "", // ว่างแทน 0
   });
 
   // edit txn
   const [editingTxnId, setEditingTxnId] = useState<number | null>(null);
-  const [editTxn, setEditTxn] = useState<{ date: string; note: string; amount: string; bucket: Bucket }>({
+  const [editTxn, setEditTxn] = useState<{
+    date: string;
+    note: string;
+    amount: string; // เดิม number → string
+    bucket: Bucket;
+  }>({
     date: new Date().toISOString().slice(0, 10),
     note: "",
     amount: "",
     bucket: "MONTHLY",
   });
 
+  // bootstrap / reload on deps
   useEffect(() => {
     if (!logged) return;
     (async () => {
@@ -73,7 +83,7 @@ export default function App() {
     })();
   }, [logged, monthKey, bucket]);
 
-  // auth
+  // ---------- auth ----------
   async function onRegister() {
     const name = registerName.trim();
     if (!name) return;
@@ -98,9 +108,10 @@ export default function App() {
     setRemain({});
   }
 
+  // แปลง string → number อย่างปลอดภัย (ว่าง = 0)
   const toNum = (s: string) => (s.trim() === "" ? 0 : Number(s));
 
-  // cycles
+  // ---------- cycles ----------
   async function onUpsertCycle() {
     await api.upsertCycle({
       monthKey,
@@ -151,7 +162,7 @@ export default function App() {
     }
   }
 
-  // txns
+  // ---------- txns ----------
   async function onAddTxn() {
     if (!cycleId) return;
     await api.createTxn({
@@ -161,7 +172,7 @@ export default function App() {
       note: newTxn.note,
       amount: toNum(newTxn.amount),
     });
-    setNewTxn({ date: newTxn.date, note: "", amount: "" });
+    setNewTxn({ date: newTxn.date, note: "", amount: "" }); // คงเป็นค่าว่างต่อ
     const s = await api.getSummary(cycleId);
     setRemain(s.remain);
     const t = await api.listTxns(cycleId, bucket);
@@ -173,7 +184,7 @@ export default function App() {
     setEditTxn({
       date: t.date.slice(0, 10),
       note: t.note,
-      amount: String(t.amount ?? ""),
+      amount: String(t.amount ?? ""), // แปลงเป็น string เพื่อแก้ไขได้แบบว่าง
       bucket: t.bucket,
     });
   }
@@ -200,6 +211,7 @@ export default function App() {
     setTxns(t);
   }
 
+  // ---------- UI ----------
   return (
     <div className="container">
       <div className="toolbar">
@@ -268,7 +280,7 @@ export default function App() {
                   className="input"
                   type="number"
                   value={salary}
-                  onChange={(e) => setSalary(e.target.value)}
+                  onChange={(e) => setSalary(e.target.value)} // string
                   placeholder="เช่น 30000"
                 />
               </div>
@@ -387,7 +399,7 @@ export default function App() {
                   type="number"
                   placeholder="เช่น 120"
                   value={newTxn.amount}
-                  onChange={(e) => setNewTxn((p) => ({ ...p, amount: e.target.value }))}
+                  onChange={(e) => setNewTxn((p) => ({ ...p, amount: e.target.value }))} // string
                 />
               </div>
               <button className="btn primary" onClick={onAddTxn} disabled={!cycleId}>
@@ -439,7 +451,9 @@ export default function App() {
                             className="input"
                             type="number"
                             value={editTxn.amount}
-                            onChange={(e) => setEditTxn((p) => ({ ...p, amount: e.target.value }))}
+                            onChange={(e) =>
+                              setEditTxn((p) => ({ ...p, amount: e.target.value }))
+                            } // string
                           />
                         </div>
                       </div>
@@ -457,7 +471,7 @@ export default function App() {
                       <div>
                         <strong>{new Date(t.date).toLocaleDateString()}</strong>
                         <span style={{ marginLeft: 8, opacity: 0.8 }}>({BUCKET_LABEL[t.bucket]})</span>
-                        <div style={{ opacity: 0.9, color: '#f50000ff' }}>{t.note}</div>
+                        <div style={{ opacity: 0.9, color: '#f50000ff', }}>{t.note}</div>
                       </div>
                       <div className="row" style={{ alignItems: "center" }}>
                         <span>{t.amount.toLocaleString()}</span>
@@ -479,7 +493,7 @@ export default function App() {
           {/* Export */}
           <section style={{ marginTop: 12 }}>
             <a
-              href={`${API_URL}/reports/export?monthKey=${monthKey}`}
+              href={`${import.meta.env.VITE_API_URL}/reports/export?monthKey=${monthKey}`}
               target="_blank"
               rel="noreferrer"
             >
