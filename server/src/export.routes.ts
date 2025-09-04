@@ -1,35 +1,62 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import ExcelJS from "exceljs";
 
 const prisma = new PrismaClient();
 const router = Router();
 
-// GET /reports/export?monthKey=YYYY-MM
-// สร้าง CSV (เปิดด้วย Excel ได้)
-router.get("/export", async (req, res) => {
-  const user = (req as any).user as { id: number };
-  const monthKey = String(req.query.monthKey || "");
-  if (!/^\d{4}-\d{2}$/.test(monthKey)) return res.status(400).json({ error: "invalid monthKey" });
+// ---- ใช้ string union เอง ----
+const BUCKET = ["SAVINGS", "MONTHLY", "WANTS"] as const;
+type Bucket = typeof BUCKET[number];
+// --------------------------------
 
-  const cycle = await prisma.budgetCycle.findFirst({ where: { userId: user.id, monthKey } });
+router.get("/export", async (req, res) => {
+  const user = (req as any).user;
+  const monthKey = String(req.query.monthKey || "");
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+    return res.status(400).json({ error: "invalid monthKey" });
+  }
+
+  const cycle = await prisma.budgetCycle.findFirst({
+    where: { userId: user.id, monthKey },
+  });
   if (!cycle) return res.status(404).json({ error: "cycle not found" });
 
   const txns = await prisma.transaction.findMany({
     where: { userId: user.id, cycleId: cycle.id },
-    orderBy: { date: "asc" },
+    orderBy: [{ date: "asc" }, { id: "asc" }],
   });
 
-  let csv = "date,bucket,note,amount\n";
-  for (const t of txns) {
-    const d = new Date(t.date);
-    const iso = d.toISOString().slice(0, 10);
-    const note = (t.note || "").replace(/"/g, '""');
-    csv += `${iso},${t.bucket},"${note}",${t.amount}\n`;
-  }
+  const wb = new ExcelJS.Workbook();
+  const wsSum = wb.addWorksheet("Summary");
 
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="transactions_${monthKey}.csv"`);
-  res.send(csv);
+  const sumBy = (b: Bucket) =>
+    txns.filter((t) => t.bucket === b).reduce((a, c) => a + Number(c.amount), 0);
+
+  wsSum.addRow(["Month", monthKey]);
+  wsSum.addRow([]);
+  wsSum.addRow(["Bucket", "Allocated", "Used", "Remaining"]);
+
+  const alloc = (b: Bucket) =>
+    b === "SAVINGS" ? Number(cycle.allocSavings)
+    : b === "MONTHLY" ? Number(cycle.allocMonthly)
+    : Number(cycle.allocWants);
+
+  BUCKET.forEach((b) => wsSum.addRow([b, alloc(b), sumBy(b), alloc(b) - sumBy(b)]));
+
+  // แยก sheet ตาม bucket
+  BUCKET.forEach((b) => {
+    const ws = wb.addWorksheet(b);
+    ws.addRow(["Date", "Note", "Amount"]);
+    txns.filter((t) => t.bucket === b).forEach((t) => {
+      ws.addRow([t.date.toISOString().slice(0, 10), t.note, Number(t.amount)]);
+    });
+  });
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="report-${monthKey}.xlsx"`);
+  await wb.xlsx.write(res);
+  res.end();
 });
 
 export default router;
