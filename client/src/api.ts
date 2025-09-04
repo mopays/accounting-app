@@ -1,26 +1,58 @@
-// frontend/src/api.ts
+// src/api.ts
 
-// const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
-const API_URL = (import.meta.env.VITE_API_URL as string) || "/api";
+// Fallback เป็น "/api" เพื่อให้ใช้ร่วมกับ Vercel rewrites ได้
+// ถ้าตั้ง VITE_API_URL ไว้ (เช่น https://accounting-app-khxi.onrender.com) ก็จะใช้ตามนั้น
+export const API_URL: string = (import.meta.env.VITE_API_URL as string) || "/api";
 
 const USERNAME_KEY = "app_username";
 export const setUsername = (u: string) => localStorage.setItem(USERNAME_KEY, u);
 export const getUsername = () => localStorage.getItem(USERNAME_KEY);
+export const clearUsername = () => localStorage.removeItem(USERNAME_KEY);
 
-async function request(path: string, options: RequestInit = {}) {
+// ---------- Types ----------
+export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
+
+export type Cycle = {
+  id: number;
+  monthKey: string;            // YYYY-MM
+  salary: number;
+  pctSavings: number;
+  pctMonthly: number;
+  pctWants: number;
+};
+
+export type Summary = {
+  remain: { [k in Bucket]?: number };
+};
+
+export type Txn = {
+  id: number;
+  cycleId: number;
+  bucket: Bucket;
+  date: string;                // ISO string
+  note: string;
+  amount: number;
+};
+
+// ---------- helper ----------
+async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const username = getUsername();
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
+
+  // ใช้ header แบบเบา ๆ แทนคุกกี้ เพื่อเลี่ยง CORS credentials
   if (username) headers["x-username"] = username;
 
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
-    // ✅ ย้ำชัดว่าเราเป็น no-cookie
+    // สำคัญ: ไม่ส่งคุกกี้/credentials เพื่อหลบ CORS ที่หลังบ้านยังไม่เปิด allow-credentials
     credentials: "omit",
   });
+
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try {
@@ -29,125 +61,93 @@ async function request(path: string, options: RequestInit = {}) {
     } catch {}
     throw new Error(msg);
   }
-  return res.json();
+
+  // บาง endpoint อาจไม่มี body (204)
+  const text = await res.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
-export type Cycle = {
-  id: number;
-  monthKey: string;
-  salary: number;
-  pctSavings: number;
-  pctMonthly: number;
-  pctWants: number;
-  allocSavings: number;
-  allocMonthly: number;
-  allocWants: number;
-};
-export type Bucket = "SAVINGS" | "MONTHLY" | "WANTS";
-export type Txn = {
-  id: number;
-  date: string;
-  note: string;
-  amount: number;
-  bucket: Bucket;
-};
-
+// ---------- API ----------
 export const api = {
-  login: async (username: string) => {
-    const r = await request("/auth/login", {
+  // auth (แบบง่าย ๆ ด้วย x-username)
+  async registerUser(username: string) {
+    return request("/users", {
       method: "POST",
       body: JSON.stringify({ username }),
     });
+  },
+  async login(username: string) {
     setUsername(username);
-    return r;
+    // ถ้าหลังบ้านมี endpoint login แยกไว้ ให้เรียกด้วย
+    try {
+      await request("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username }),
+      });
+    } catch {
+      // ไม่มี endpoint ก็ไม่เป็นไร ใช้ x-username อย่างเดียว
+    }
   },
-  logout: async () => {
-    await request("/auth/logout", { method: "POST" });
-    setUsername("");
+  async logout() {
+    try {
+      await request("/auth/logout", { method: "POST" });
+    } finally {
+      clearUsername();
+    }
   },
 
-  registerUser: (username: string) =>
-    request("/users", { method: "POST", body: JSON.stringify({ username }) }),
-  listUsers: () => request("/users"),
-  deleteUser: (id: number) => request(`/users/${id}`, { method: "DELETE" }),
-
-  listCycles: (): Promise<Cycle[]> => request("/cycles"),
-  upsertCycle: (body: {
+  // cycles
+  async listCycles(): Promise<Cycle[]> {
+    return request("/cycles", { method: "GET" });
+  },
+  async upsertCycle(payload: {
     monthKey: string;
     salary: number;
     pctSavings: number;
     pctMonthly: number;
     pctWants: number;
-  }) => request("/cycles", { method: "POST", body: JSON.stringify(body) }),
-  updateCycle: (
-    id: number,
-    body: Partial<{
-      salary: number;
-      pctSavings: number;
-      pctMonthly: number;
-      pctWants: number;
-    }>
-  ) => request(`/cycles/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteCycle: (id: number) => request(`/cycles/${id}`, { method: "DELETE" }),
-
-  listTxns: (cycleId: number, bucket?: string): Promise<Txn[]> => {
-    const username = getUsername();
-    const url = new URL(`${API_URL}/txns`);
-    url.searchParams.set("cycleId", String(cycleId));
-    if (bucket) url.searchParams.set("bucket", bucket);
-    if (username) url.searchParams.set("username", username);
-    return fetch(url.toString(), {
-      headers: username ? { "x-username": username } : {},
-      credentials: "omit", // ✅ สำคัญ
-    }).then(async (r) => {
-      if (!r.ok) {
-        let msg = `${r.status} ${r.statusText}`;
-        try {
-          const j = await r.json();
-          if (j?.error) msg = j.error;
-        } catch {}
-        throw new Error(msg);
-      }
-      return r.json();
-    });
+  }) {
+    // ใช้ POST /cycles เป็น upsert (ปรับตามหลังบ้านของคุณ)
+    return request("/cycles", { method: "POST", body: JSON.stringify(payload) });
+  },
+  async updateCycle(id: number, payload: {
+    salary: number;
+    pctSavings: number;
+    pctMonthly: number;
+    pctWants: number;
+  }) {
+    return request(`/cycles/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+  },
+  async deleteCycle(id: number) {
+    return request(`/cycles/${id}`, { method: "DELETE" });
+  },
+  async getSummary(cycleId: number): Promise<Summary> {
+    return request(`/cycles/${cycleId}/summary`, { method: "GET" });
   },
 
-  createTxn: (body: {
+  // txns
+  async listTxns(cycleId: number, bucket: Bucket): Promise<Txn[]> {
+    const params = new URLSearchParams({ cycleId: String(cycleId), bucket });
+    return request(`/txns?${params.toString()}`, { method: "GET" });
+  },
+  async createTxn(payload: {
     cycleId: number;
     bucket: Bucket;
-    date: string;
+    date: string;   // YYYY-MM-DD
     note: string;
     amount: number;
-  }) => request("/txns", { method: "POST", body: JSON.stringify(body) }),
-  updateTxn: (
-    id: number,
-    body: Partial<{
-      bucket: Bucket;
-      date: string;
-      note: string;
-      amount: number;
-    }>
-  ) => request(`/txns/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteTxn: (id: number) => request(`/txns/${id}`, { method: "DELETE" }),
-
-  getSummary: (cycleId: number) => {
-    const username = getUsername();
-    const url = new URL(`${API_URL}/txns/summary`);
-    url.searchParams.set("cycleId", String(cycleId));
-    if (username) url.searchParams.set("username", username);
-    return fetch(url.toString(), {
-      headers: username ? { "x-username": username } : {},
-      credentials: "omit", // ✅ สำคัญ
-    }).then(async (r) => {
-      if (!r.ok) {
-        let msg = `${r.status} ${r.statusText}`;
-        try {
-          const j = await r.json();
-          if (j?.error) msg = j.error;
-        } catch {}
-        throw new Error(msg);
-      }
-      return r.json();
-    });
+  }) {
+    return request("/txns", { method: "POST", body: JSON.stringify(payload) });
+  },
+  async updateTxn(id: number, payload: {
+    date: string;   // YYYY-MM-DD
+    note: string;
+    amount: number;
+    bucket: Bucket;
+  }) {
+    return request(`/txns/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+  },
+  async deleteTxn(id: number) {
+    return request(`/txns/${id}`, { method: "DELETE" });
   },
 };
